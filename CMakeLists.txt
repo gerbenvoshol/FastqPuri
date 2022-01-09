@@ -145,7 +145,11 @@ add_executable(trimFilter ${PROJECT_SOURCE_DIR}/trimFilter.c
             ${PROJECT_SOURCE_DIR}/adapters.c 
             ${PROJECT_SOURCE_DIR}/tree.c 
             ${PROJECT_SOURCE_DIR}/bloom.c 
-            ${PROJECT_SOURCE_DIR}/city.c 
+            ${PROJECT_SOURCE_DIR}/city.c
+            ${PROJECT_SOURCE_DIR}/xxhash.c
+            ${PROJECT_SOURCE_DIR}/farm.c
+            ${PROJECT_SOURCE_DIR}/fasthash.c
+            ${PROJECT_SOURCE_DIR}/fnv_1a.c   
             ${PROJECT_SOURCE_DIR}/trim.c 
             ${PROJECT_SOURCE_DIR}/fopen_gen.c
             ${PROJECT_SOURCE_DIR}/Lmer.c
@@ -160,7 +164,11 @@ add_executable(trimFilterPE ${PROJECT_SOURCE_DIR}/trimFilterDS.c
             ${PROJECT_SOURCE_DIR}/fq_read.c 
             ${PROJECT_SOURCE_DIR}/tree.c 
             ${PROJECT_SOURCE_DIR}/bloom.c 
-            ${PROJECT_SOURCE_DIR}/city.c 
+            ${PROJECT_SOURCE_DIR}/city.c
+            ${PROJECT_SOURCE_DIR}/xxhash.c
+            ${PROJECT_SOURCE_DIR}/farm.c
+            ${PROJECT_SOURCE_DIR}/fasthash.c
+            ${PROJECT_SOURCE_DIR}/fnv_1a.c                                     
             ${PROJECT_SOURCE_DIR}/adapters.c 
             ${PROJECT_SOURCE_DIR}/trim.c 
             ${PROJECT_SOURCE_DIR}/trimDS.c 
@@ -174,7 +182,11 @@ add_executable(trimFilterPE ${PROJECT_SOURCE_DIR}/trimFilterDS.c
 set(CMAKE_C_LINK_FLAGS  "-lm " )
 add_executable(makeBloom ${PROJECT_SOURCE_DIR}/makeBloom.c 
             ${PROJECT_SOURCE_DIR}/init_makeBloom.c 
-            ${PROJECT_SOURCE_DIR}/city.c 
+            ${PROJECT_SOURCE_DIR}/city.c
+            ${PROJECT_SOURCE_DIR}/xxhash.c
+            ${PROJECT_SOURCE_DIR}/farm.c
+            ${PROJECT_SOURCE_DIR}/fasthash.c
+            ${PROJECT_SOURCE_DIR}/fnv_1a.c  
             ${PROJECT_SOURCE_DIR}/fa_read.c 
             ${PROJECT_SOURCE_DIR}/str_manip.c 
             ${PROJECT_SOURCE_DIR}/bloom.c 

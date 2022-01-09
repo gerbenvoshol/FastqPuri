@@ -78,7 +78,7 @@ static const char* zcatExec(const char* path) {
  *  */
 static const char* catExec(const char* path) {
   int strl = strlen(path);
-  return (!strcmp(path + strl - 3, ".gz")) ? "gzip -f" :
+  return (!strcmp(path + strl - 3, ".gz")) ? "pigz -p 8 -f" :
      (!strcmp(path + strl - 4, ".bam")) ? "samtools view -bS" :
      NULL;
 }

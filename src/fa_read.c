@@ -237,7 +237,7 @@ int read_fasta(char *filename, Fa_data * ptr_fa) {
   }
   // Allocate memory to read the file in one step
   fprintf(stderr, "- Fasta file size: %" PRIu64 "bytes. \n", sz);
-  fprintf(stderr, "- Allocating %" PRIu64 "bytes in the buffer. \n", sz);
+  fprintf(stderr, "- Allocating %" PRIu64 " bytes in the buffer. \n", sz);
   char*  buffer  =  (char *) malloc(sizeof(char)*sz);
   if (buffer == NULL) {
     fprintf(stderr, "Error occured. Could not allocate %" PRIu64 " Bytes.\n",
@@ -252,18 +252,20 @@ int read_fasta(char *filename, Fa_data * ptr_fa) {
   int  linelen =  ptr_fa -> linelen;
   fread(buffer, 1, sz, fa_in);
   while (pos < sz) {
-     for (i = 0; i < ptr_fa -> nentries; i++) {
+     for (i = 0; i < ptr_fa->nentries; i++) {
         pos += ignore_line(buffer + pos);
         int nfull = (ptr_fa -> entry)[i].N/linelen;
         int remlen = (ptr_fa -> entry)[i].N % linelen;
         int  j;
         for (j = 0; j < nfull; j++) {
+          //printf("HERE3\n");
           memcpy( (ptr_fa -> entry)[i].seq + j*linelen, buffer + pos, linelen);
           pos += linelen + 1;
         }  // end read full lines
         // read the remainder
         memcpy((ptr_fa -> entry[i].seq) + j*linelen, buffer + pos, remlen);
         pos += remlen + 1;
+        //printf("SEQ: %s\n", ptr_fa -> entry[i].seq);
      }  // end for on the entries
   }  // end while on pos
   free(buffer);  // free buffer

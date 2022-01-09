@@ -27,6 +27,14 @@
  */
 
 #include "bloom.h"
+
+#include "city.h"
+#include "farm.h"
+#include "fasthash.h"
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+#include "nthash.h"
+
 #include <string.h>
 #include <stdio.h>
 
@@ -159,18 +167,18 @@ void free_Bfilter(Bfilter * ptr_bf) {
 Bfkmer *init_Bfkmer(int kmersize, int hashNum) {
   Bfkmer *ptr_bfkmer = malloc(sizeof(Bfkmer));
   ptr_bfkmer -> kmersize = kmersize;
-  ptr_bfkmer -> kmersizeBytes = kmersize / BASESPERCHAR;
+  ptr_bfkmer -> kmersizeBytes = kmersize; // in ntHASH we use the whole byte string kmersize / BASESPERCHAR;
   ptr_bfkmer -> halfsizeBytes = kmersize / BITSPERCHAR;
   ptr_bfkmer -> hangingBases = 0;
   ptr_bfkmer -> hasOverhead = 0;
   ptr_bfkmer -> hashNum = hashNum;
-  if (kmersize % BITSPERCHAR != 0) {
-      ptr_bfkmer -> halfsizeBytes++;
-      if ((ptr_bfkmer -> hangingBases = kmersize % 4) > 0) {
-            ptr_bfkmer -> kmersizeBytes++;
-            ptr_bfkmer -> hasOverhead = 1;
-      }
-  }
+  // if (kmersize % BITSPERCHAR != 0) {
+  //     ptr_bfkmer -> halfsizeBytes++;
+  //     if ((ptr_bfkmer -> hangingBases = kmersize % 4) > 0) {
+  //           ptr_bfkmer -> kmersizeBytes++;
+  //           ptr_bfkmer -> hasOverhead = 1;
+  //     }
+  // }
   ptr_bfkmer -> compact = (unsigned char *) calloc(ptr_bfkmer -> kmersizeBytes,
                                                sizeof(unsigned char));
   ptr_bfkmer -> hashValues = (uint64_t *) calloc(hashNum, sizeof(uint64_t));
@@ -223,6 +231,12 @@ void free_Bfkmer(Bfkmer *ptr_bfkmer) {
  * */
 int compact_kmer(const unsigned char *sequence, uint64_t position,
                        Bfkmer *ptr_bfkmer) {
+  // START NTHASH
+  ptr_bfkmer->kmersizeBytes = ptr_bfkmer->kmersize;
+  memcpy(ptr_bfkmer->compact, &sequence[position], ptr_bfkmer->kmersizeBytes);
+  return 3;
+  // END NTHASH
+
   unsigned char *m_fw, *m_bw;
   if (ptr_bfkmer->kmersize < 4) {
     fprintf(stderr, "Kmer length has to be at least four.\n");
@@ -434,11 +448,25 @@ int compact_kmer(const unsigned char *sequence, uint64_t position,
  * */
 void multiHash(Bfkmer* ptr_bfkmer) {
   int i;
-  for (i=0; i < ptr_bfkmer->hashNum; i++) {
-     ptr_bfkmer -> hashValues[i] = CityHash64WithSeed(
-         (const char *)ptr_bfkmer->compact,
-         ptr_bfkmer -> kmersizeBytes, i);
-  }
+  
+  // START NTHASH
+  uint64_t fhVal = 0;
+  uint64_t rhVal = 0;
+  NTMC64((const char *) ptr_bfkmer->compact, ptr_bfkmer->kmersizeBytes, ptr_bfkmer->hashNum, &fhVal, &rhVal, ptr_bfkmer->hashValues);
+  // END NTHASH
+
+  // for (i=0; i < ptr_bfkmer->hashNum; i++) {
+    // city hash
+    // ptr_bfkmer->hashValues[i] = CityHash64WithSeed((const char *)ptr_bfkmer->compact, ptr_bfkmer->kmersizeBytes, i);
+    // // xx hash
+    // ptr_bfkmer->hashValues[i] = XXH64((const void *) ptr_bfkmer->compact, ptr_bfkmer->kmersizeBytes, i);
+    // // farm hash
+    // ptr_bfkmer->hashValues[i] = farmhash64_with_seed((const char*) ptr_bfkmer->compact, ptr_bfkmer->kmersizeBytes, i);
+    // // fast hash
+    // ptr_bfkmer->hashValues[i] = fasthash64((const void *)ptr_bfkmer->compact, ptr_bfkmer->kmersizeBytes, i);
+    // // fnv_1a hash
+    // ptr_bfkmer->hashValues[i] = fnv_1a((const char *)ptr_bfkmer->compact, ptr_bfkmer->kmersizeBytes, i);
+  // }
 }
 
 /**
@@ -513,6 +541,9 @@ Bfilter *create_Bfilter(Fa_data *ptr_fasta, int kmersize, uint64_t bfsizeBits,
   fprintf(stderr, "- number of hash functions used: %d\n", hashNum);
   fprintf(stderr, "- number of elements that will be inserted: %" PRIu64 "\n", nelem);
   for (i=0; i < ptr_fasta -> nentries; i++) {
+    if (ptr_fasta -> entry[i].N < kmersize) {
+      continue;
+    }
     maxN = ptr_fasta -> entry[i].N - kmersize + 1;
     for (position = 0; position < maxN; position++) {
       isvalid = compact_kmer((unsigned char *)(ptr_fasta -> entry[i].seq),

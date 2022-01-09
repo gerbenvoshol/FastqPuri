@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "makeTree from FastqPuri\n");
   getarg_makeTree(argc, argv);
   fprintf(stderr, "Starting makeTree at: %s", asctime(timeinfo));
-  fprintf(stderr, "makeTree exec: constructing a tree and storing it\n.");
+  fprintf(stderr, "makeTree exec: constructing a tree and storing it.\n");
   fprintf(stderr, "- Input file: %s\n", par_MT.inputfasta);
   fprintf(stderr, "- Tree depth: %d\n", par_MT.L);
   fprintf(stderr, "- Output file : %s\n", par_MT.outputfile);
