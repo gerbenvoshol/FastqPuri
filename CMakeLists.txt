@@ -176,7 +176,25 @@ add_executable(trimFilterPE ${PROJECT_SOURCE_DIR}/trimFilterDS.c
             ${PROJECT_SOURCE_DIR}/Lmer.c
             ${PROJECT_SOURCE_DIR}/str_manip.c )
 
-
+add_executable(splitPE ${PROJECT_SOURCE_DIR}/splitDS.c 
+            ${PROJECT_SOURCE_DIR}/init_trimFilterDS.c 
+            ${PROJECT_SOURCE_DIR}/struct_trimFilter.c 
+            ${PROJECT_SOURCE_DIR}/io_trimFilterDS.c 
+            ${PROJECT_SOURCE_DIR}/fa_read.c 
+            ${PROJECT_SOURCE_DIR}/fq_read.c 
+            ${PROJECT_SOURCE_DIR}/tree.c 
+            ${PROJECT_SOURCE_DIR}/bloom.c 
+            ${PROJECT_SOURCE_DIR}/city.c
+            ${PROJECT_SOURCE_DIR}/xxhash.c
+            ${PROJECT_SOURCE_DIR}/farm.c
+            ${PROJECT_SOURCE_DIR}/fasthash.c
+            ${PROJECT_SOURCE_DIR}/fnv_1a.c                                     
+            ${PROJECT_SOURCE_DIR}/adapters.c 
+            ${PROJECT_SOURCE_DIR}/trim.c 
+            ${PROJECT_SOURCE_DIR}/trimDS.c 
+            ${PROJECT_SOURCE_DIR}/fopen_gen.c
+            ${PROJECT_SOURCE_DIR}/Lmer.c
+            ${PROJECT_SOURCE_DIR}/str_manip.c )
          
 # Set linker flags
 set(CMAKE_C_LINK_FLAGS  "-lm " )
@@ -211,6 +229,7 @@ install(PROGRAMS bin/Sreport DESTINATION ${INSTALL_DIR}/)
 install(PROGRAMS bin/makeTree DESTINATION ${INSTALL_DIR}/)
 install(PROGRAMS bin/trimFilter DESTINATION ${INSTALL_DIR}/)
 install(PROGRAMS bin/trimFilterPE DESTINATION ${INSTALL_DIR}/)
+install(PROGRAMS bin/splitPE DESTINATION ${INSTALL_DIR}/)
 install(PROGRAMS bin/makeBloom DESTINATION ${INSTALL_DIR}/)
 
 # Make install R scripts 
