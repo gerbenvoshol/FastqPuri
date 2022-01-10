@@ -1,5 +1,6 @@
 /****************************************************************************
  * Copyright (C) 2017 by Paula Perez Rubio                                  *
+ * Copyright (C) 2022 by Gerben Voshol
  *                                                                          *
  * This file is part of FastqPuri.                                      *
  *                                                                          *
@@ -19,13 +20,13 @@
  ****************************************************************************/
 
 /**
- * @file trimFilterDS.c
- * @author Paula Perez <paulaperezrubio@gmail.com>
- * @date 25.08.2017
- * @brief trimFilterDS main function
+ * @file splitDS.c
+ * @author Gerben Voshol <gpvoshol@gmail.com>
+ * @date 10.01.2022
+ * @brief splitDS main function
  *
- * This file contains the trimFilterDS main function.
- * See README_trimFilterDS.md and README_trimFilter for more details.
+ * This file contains the splitDS main function.
+ * See README_splitDS.md for more details.
  *
  */
 
@@ -156,7 +157,7 @@ int main(int argc, char *argv[]) {
          }
          nrfilters = index.N - 2;
          score = atof(index.s[index.N - 2]);
-         par_TF.score = score;
+         par_TF.score = score; // Used by tim.c to score sequences
          kmersize = atoi(index.s[index.N - 1]);
          break;
       case 'o':
