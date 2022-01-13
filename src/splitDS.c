@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <omp.h>
 #include "defines.h"
 #include "config.h"
 #include "str_manip.h"
@@ -69,12 +70,20 @@ void printHelpDialog_splitDS() {
    "               colons, mandatory option.\n"
    " -l, --length  read length: length of the reads, mandatory option.\n"
    " -o, --output  output prefix (with path), optional (default ./out).\n"
+   " -b, --best    output to filter with the best score\n"
    " -x, --idx     index input file. To be included with any methods to remove.\n"
    "               contaminations (TREE, BLOOM). Minimum 3 fields separated by colons: \n"
    "               <INDEX_FILE(s)>: output of makeTree, makeBloom,\n"
    "               <score>: score threshold to accept a match [0,1],\n"
    "               [lmer_len]: the length of the lmers to be \n"
-   "                        looked for in the reads [1,READ_LENGTH].\n";
+   "                        looked for in the reads [1,READ_LENGTH].\n"
+   " -A, --adapter adapter input. Four fields separated by colons:\n"
+   "               <AD1.fa>: fasta file containing adapters,\n"
+   "               <AD2.fa>: fasta file containing adapters,\n"
+   "               <mismatches>: maximum mismatch count allowed,\n"
+   "               <score>: score threshold  for the aligner.\n"
+   " -m, --minL    minimum length allowed for a read before it is discarded\n"
+   "               (default 36).\n";
   fprintf(stderr, "%s", dialog);
 }
 
@@ -106,30 +115,46 @@ int main(int argc, char *argv[]) {
   static struct option long_options[] = {
      {"version", no_argument, 0, 'v'},
      {"help", no_argument, 0, 'h'},
+     {"best", no_argument, 0, 'b'},
      {"ifq", required_argument, 0, 'f'},
      {"idx", required_argument, 0, 'x'},
+     {"adapter", required_argument, 0, 'A'},
      {"length", required_argument, 0, 'l'},
+     {"minL", required_argument, 0, 'm'},
      {"output", required_argument, 0, 'o'}
   };
 
   char *Ifq = NULL, *Ifq2 = NULL;
+  char *ad_fa = NULL, *ad2_fa = NULL;
   double score = 0.15;
   int kmersize = 25;
   int nrfilters = 0;
   char *prefix = "";
   int L = 151;
-
+  int use_best = 0;
+  int adapter_trim = 0;
+  int mismatches = 2;
+  double threshold = 8.0; 
   int option;
-  Split index = { 0 }, in_fq = { 0 };
-  while ((option = getopt_long(argc, argv, "hvf:x:o:l:", long_options, 0)) != -1) {
+  int i;
+  par_TF.minL = 36;
+
+  Split index = { 0 }, in_fq = { 0 }, adapt = { 0 };
+  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:a:m:", long_options, 0)) != -1) {
     switch (option) {
       case 'h':
-        printHelpDialog_trimFilterDS();
+        printHelpDialog_splitDS();
         exit(EXIT_SUCCESS);
         break;
       case 'v':
         printf("splitPE version %s \nWritten by Gerben Voshol\n", VERSION);
         exit(EXIT_SUCCESS);
+        break;
+      case 'b':
+        use_best = 1;
+        break;
+      case 'm':
+        par_TF.minL = atoi(optarg);
         break;
       case 'f':
          in_fq = strsplit(optarg, ':');
@@ -145,6 +170,23 @@ int main(int argc, char *argv[]) {
          strncpy(Ifq, in_fq.s[0], MAX_FILENAME);
          strncpy(Ifq2, in_fq.s[1], MAX_FILENAME);
          break;
+      case 'A':
+         adapter_trim = true;
+         adapt = strsplit(optarg, ':');
+         if (adapt.N != 4) {
+            fprintf(stderr, "--adapter,-A: optionERR. You must pass four \n");
+            fprintf(stderr, "  arguments separated by semicolons: \n");
+            fprintf(stderr, "   <AD1.fa>:<AD2.fa>:<mismatches>:<threshold>\n");
+            fprintf(stderr, "File: %s, line: %d\n", __FILE__, __LINE__);
+            exit(EXIT_FAILURE);
+         }
+         ad_fa = adapt.s[0];
+         ad2_fa = adapt.s[1];
+         par_TF.ad.mismatches = atoi(adapt.s[2]);
+         par_TF.ad.threshold = atof(adapt.s[3]);
+         mismatches = atoi(adapt.s[2]);
+         threshold = atof(adapt.s[3]);
+         break;
       case 'x':
          index = strsplit(optarg, ':');
          if (index.N < 3) {
@@ -159,17 +201,22 @@ int main(int argc, char *argv[]) {
          score = atof(index.s[index.N - 2]);
          par_TF.score = score; // Used by tim.c to score sequences
          kmersize = atoi(index.s[index.N - 1]);
+         par_TF.kmersize = atoi(index.s[index.N - 1]);
          break;
       case 'o':
          prefix = optarg;
          break;
+      case 'q':
+         par_TF.minQ = atoi(optarg);
+         break;
       case 'l':
          L = atoi(optarg);
+         par_TF.L = atoi(optarg);
          break;
       default:
         fprintf(stderr, "%s: option `-%c' is invalid: ignored\n",
                            argv[0], optopt);
-        printHelpDialog_trimFilterDS();
+        printHelpDialog_splitDS();
         fprintf(stderr, "File: %s, line: %d\n", __FILE__, __LINE__);
         exit(EXIT_FAILURE);
         break;
@@ -202,6 +249,31 @@ int main(int argc, char *argv[]) {
   }
 
   /**
+   *  Loading the adapters file if the option is activated
+   * 
+   * */
+  int Nad;
+  DS_adap *adap_list = NULL;
+  if (adapter_trim) {
+    Fa_data *ad1 = malloc(sizeof(Fa_data));
+    Fa_data *ad2 = malloc(sizeof(Fa_data));
+    read_fasta(ad_fa, ad1);
+    read_fasta(ad2_fa, ad2);
+    Nad = ad1->nentries;
+    par_TF.ad.Nad = ad1->nentries;
+    adap_list = malloc(sizeof(DS_adap)*ad1->nentries);
+    for (i = 0; i < ad1->nentries; i++) {
+       adap_list[i] = init_DSadap(ad1->entry[i].seq, ad2->entry[i].seq,
+                                  ad1->entry[i].N, ad2->entry[i].N);
+    }
+    init_alLUTs();
+    init_map();
+    free_fasta(ad1);
+    free_fasta(ad2);
+    fprintf(stderr, "- Adapters removal is activated!\n");
+  }  // endif par_TF.is adapter
+
+  /**
    * Load and initialize filters
    * 
    * */
@@ -211,7 +283,6 @@ int main(int argc, char *argv[]) {
 
   init_LUTs();
   init_map();
-  int i;
   char temp[MAX_FILENAME];
   for (i = 0; i < nrfilters; i++) {
     if (strsuff(index.s[i], ".bf")) {
@@ -279,6 +350,8 @@ int main(int argc, char *argv[]) {
 
   size_t nrundet = 0;
   size_t nrmulti = 0;
+  size_t nrtrim = 0;
+  size_t nrdisc = 0;
   int newl1 = 0, newl2 = 0;
   int offset1 = 0, offset2 = 0;
   int l1_i = 0, l1_f = 0, l2_i = 0, l2_f = 0;
@@ -328,57 +401,104 @@ int main(int argc, char *argv[]) {
            j2++;
         } else if (stop1 && stop2) {  // Do the stuff!!
           counts++;
-          hit = 0; // have a hit
-          hit_idx = -1;
-          undet = 1;
-          multi = 0;
-          for (i = 0; i < nrfilters; i++) {
-            if (ptr_tree[i]) {
-              res = (is_read_inTree(ptr_tree[i], seq1, &score1) || is_read_inTree(ptr_tree[i], seq2, &score2));
-              if (res && !hit) {
-                hit = 1;
-                hit_idx = i;
-                undet = 0;
-              } else if (res && hit) {
-                multi = 1;
-                undet = 0;
-                hit = 0;
+          int trim = 0;
+          int discarded = 0;
+          if (adapter_trim) {
+            // omp_set_dynamic(0);     // Explicitly disable dynamic teams
+            // omp_set_num_threads(2); // Use 4 threads for all consecutive parallel regions
+            // #pragma omp parallel for private(position)
+            for (i_ad=0; i_ad < Nad; i_ad++) {
+              trim = trim_adapterDS(&adap_list[i_ad], seq1, seq2, DEFAULT_ZEROQ);
+              // Too short or trimmed
+              if (trim != 1)
                 break;
-              }
-            } else if (ptr_bf[i]) {
-              res =(is_read_inBloom(ptr_bf[i], seq1, ptr_bfkmer[i], &score1) || is_read_inBloom(ptr_bf[i], seq2, ptr_bfkmer[i], &score2));
-              if (res && !hit) {
-                hit = 1;
-                hit_idx = i;
-                undet = 0;
-              } else if (res && hit) {
-                multi = 1;
-                undet = 0;
-                hit = 0;
-                break;
-              }
+            }
+            // Read is too short
+            if (trim == 0) {
+              nrdisc++;
+              // printf("disc\n");
+              // Nchar1 = string_seq(seq1, char_seq1);
+              // Nchar2 = string_seq(seq2, char_seq2);
+              // printf("%s\n", char_seq1);
+              discarded = 1;
+            } else if (trim == 2) {
+              nrtrim++;
+              // printf("trim\n");
             }
           }
-          if (undet) {
-            nrundet++;
-            Nchar1 = string_seq(seq1, char_seq1);
-            Nchar2 = string_seq(seq2, char_seq2);
-            buffer_outputDS(undet_1, char_seq1, Nchar1, nrfilters*2);
-            buffer_outputDS(undet_2, char_seq2, Nchar2, nrfilters*2+1);           
-          } else if (multi) {
-            nrmulti++;
-            Nchar1 = string_seq(seq1, char_seq1);
-            Nchar2 = string_seq(seq2, char_seq2);
-            buffer_outputDS(multi_1, char_seq1, Nchar1, nrfilters*2+2);
-            buffer_outputDS(multi_2, char_seq2, Nchar2, nrfilters*2+3);               
-          } else if (hit) {
-            nrreads[hit_idx]++;
-            Nchar1 = string_seq(seq1, char_seq1);
-            Nchar2 = string_seq(seq2, char_seq2);
-            buffer_outputDS(out_1[hit_idx], char_seq1, Nchar1, hit_idx*2);
-            buffer_outputDS(out_2[hit_idx], char_seq2, Nchar2, hit_idx*2+1);                
-          }
 
+          if (!discarded) {
+            hit = 0; // have a hit
+            hit_idx = -1;
+            undet = 1;
+            multi = 0;
+            for (i = 0; i < nrfilters; i++) {
+              if (ptr_tree[i]) {
+                res = (is_read_inTree(ptr_tree[i], seq1, &score1) || is_read_inTree(ptr_tree[i], seq2, &score2));
+                if (res && !hit) {
+                  hit = 1;
+                  hit_idx = i;
+                  undet = 0;
+                  best_score = score1 + score2;
+                } else if (res && hit) {
+                  if (use_best) {
+                    curr_score = score1 + score2;
+                    if (curr_score > best_score) {
+                      undet = 0;
+                      hit_idx = i;
+                      hit = 1;
+                    }
+                  } else {
+                    multi = 1;
+                    undet = 0;
+                    hit = 0;
+                    break;
+                  }
+                }
+              } else if (ptr_bf[i]) {
+                res =(is_read_inBloom(ptr_bf[i], seq1, ptr_bfkmer[i], &score1) || is_read_inBloom(ptr_bf[i], seq2, ptr_bfkmer[i], &score2));
+                if (res && !hit) {
+                  hit = 1;
+                  hit_idx = i;
+                  undet = 0;
+                  best_score = score1 + score2;
+                } else if (res && hit) {
+                  if (use_best) {
+                    curr_score = score1 + score2;
+                    if (curr_score > best_score) {
+                      undet = 0;
+                      hit_idx = i;
+                      hit = 1;
+                    }
+                  } else {
+                    multi = 1;
+                    undet = 0;
+                    hit = 0;
+                    break;
+                  }
+                }
+              }
+            }
+            if (undet) {
+              nrundet++;
+              Nchar1 = string_seq(seq1, char_seq1);
+              Nchar2 = string_seq(seq2, char_seq2);
+              buffer_outputDS(undet_1, char_seq1, Nchar1, nrfilters*2);
+              buffer_outputDS(undet_2, char_seq2, Nchar2, nrfilters*2+1);           
+            } else if (multi) {
+              nrmulti++;
+              Nchar1 = string_seq(seq1, char_seq1);
+              Nchar2 = string_seq(seq2, char_seq2);
+              buffer_outputDS(multi_1, char_seq1, Nchar1, nrfilters*2+2);
+              buffer_outputDS(multi_2, char_seq2, Nchar2, nrfilters*2+3);               
+            } else if (hit) {
+              nrreads[hit_idx]++;
+              Nchar1 = string_seq(seq1, char_seq1);
+              Nchar2 = string_seq(seq2, char_seq2);
+              buffer_outputDS(out_1[hit_idx], char_seq1, Nchar1, hit_idx*2);
+              buffer_outputDS(out_2[hit_idx], char_seq2, Nchar2, hit_idx*2+1);                
+            }
+          }
           if (counts % 1000000 == 0) {
             fprintf(stderr, "  %10ld reads have been read.\n", counts);
           }
@@ -433,6 +553,11 @@ int main(int argc, char *argv[]) {
   fclose(multi_2);
   fprintf(stderr, "- Multimapped: %ld\n", nrmulti);
 
+  if (adapter_trim) {
+    fprintf(stderr, "- Too short: %ld\n", nrdisc);
+    fprintf(stderr, "- Adapter trimmed: %ld\n", nrtrim);
+  }
+
   for (i = 0; i < nrfilters; i++) {
     buffer_outputDS(out_1[i], NULL, 0, i*2);
     fclose(out_1[i]);
@@ -467,10 +592,14 @@ int main(int argc, char *argv[]) {
   free(ptr_bfkmer);
   free(ptr_tree);
 
+  free(adap_list);
+
   /**
    * Cleanup
    * 
    * */
+  free(seq1);
+  free(seq2);
   free(char_seq1);
   free(char_seq2);
   free(buffer1);
