@@ -28,6 +28,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <omp.h>
 #include "trim.h"
 #include "str_manip.h"
 #include "defines.h"
@@ -736,15 +737,17 @@ int trim_sequenceQ(Fq_read *seq) {
  * @returns true if read was found, false otherwise
  *
  * */
-bool is_read_inTree(Tree *tree_ptr, Fq_read *seq) {
+bool is_read_inTree(Tree *tree_ptr, Fq_read *seq, double *ret_score) {
   char read[seq->L];
   memcpy(read, seq -> line2, seq -> L+1);
   Lmer_sLmer(read, seq -> L);
-  if (check_path(tree_ptr, read, seq -> L) > par_TF.score) {
+  *ret_score = check_path(tree_ptr, read, seq -> L);
+  if (*ret_score > par_TF.score) {
      return true;
   } else {
      rev_comp(read, seq -> L);
-     return (check_path(tree_ptr, read, seq -> L) > par_TF.score);
+     *ret_score = check_path(tree_ptr, read, seq -> L);
+     return (*ret_score > par_TF.score);
   }
 }
 
@@ -758,7 +761,7 @@ bool is_read_inTree(Tree *tree_ptr, Fq_read *seq) {
  * @returns true if read was found, false otherwise
  *
  * */
-bool is_read_inBloom(Bfilter *ptr_bf, Fq_read *seq, Bfkmer *ptr_bfkmer) {
+bool is_read_inBloom(Bfilter *ptr_bf, Fq_read *seq, Bfkmer *ptr_bfkmer, double *ret_score) {
   unsigned char read[seq->L];
   memcpy(read, seq -> line2, seq -> L);
   int position;
@@ -768,13 +771,21 @@ bool is_read_inBloom(Bfilter *ptr_bf, Fq_read *seq, Bfkmer *ptr_bfkmer) {
            ptr_bf -> kmersize);
   }
   double score = 0;
+
+  // omp_set_dynamic(0);     // Explicitly disable dynamic teams
+  // omp_set_num_threads(2); // Use 4 threads for all consecutive parallel regions
+  // #pragma omp parallel for private(position)
   for (position = 0; position <  maxN; position++) {
     if (compact_kmer(read, position, ptr_bfkmer)) {
        multiHash(ptr_bfkmer);
        if (contains(ptr_bf, ptr_bfkmer)) {
+          // #pragma omp atomic
           score += 1.0;
        }
     }
   }
-  return (score/maxN > par_TF.score);
+
+  *ret_score = score/(double) maxN;
+
+  return (*ret_score > par_TF.score);
 }

@@ -270,7 +270,7 @@ void getarg_trimFilterDS(int argc, char **argv) {
          par_TF.is_fa = true;
          tree_fa = strsplit(optarg, ':');
          if (tree_fa.N != 3) {
-            fprintf(stderr, "--ifa,-a: optionERR. You must pass four \n");
+            fprintf(stderr, "--ifa,-a: optionERR. You must pass three \n");
             fprintf(stderr, "  arguments separated by semicolons: \n");
             fprintf(stderr, "  <INPUT.fa>:<score>:<lmer_len>\n");
             fprintf(stderr, "File: %s, line: %d\n", __FILE__, __LINE__);

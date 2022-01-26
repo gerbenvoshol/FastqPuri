@@ -233,6 +233,7 @@ int main(int argc, char *argv[]) {
   int stop1 = 0, stop2 = 0;
   char *buffer1 = malloc(sizeof(char)*(B_LEN + 1));
   char *buffer2 = malloc(sizeof(char)*(B_LEN + 1));
+  double tmp;
   do {
      newl1 = fread(buffer1+offset1, 1, B_LEN-offset1, fq_in1);
      newl2 = fread(buffer2+offset2, 1, B_LEN-offset2, fq_in2);
@@ -292,11 +293,11 @@ int main(int argc, char *argv[]) {
            }
            if (stat_TFDS.filters[CONT] && !discarded) {
              if (par_TF.method == TREE) {
-               discarded = (is_read_inTree(ptr_tree, seq1) ||
-                             is_read_inTree(ptr_tree, seq2));
+               discarded = (is_read_inTree(ptr_tree, seq1, &tmp) ||
+                             is_read_inTree(ptr_tree, seq2, &tmp));
              } else if (par_TF.method == BLOOM) {
-               discarded =(is_read_inBloom(ptr_bf, seq1, par_TF.ptr_bfkmer) ||
-                          is_read_inBloom(ptr_bf, seq2, par_TF.ptr_bfkmer));
+               discarded =(is_read_inBloom(ptr_bf, seq1, par_TF.ptr_bfkmer, &tmp) ||
+                          is_read_inBloom(ptr_bf, seq2, par_TF.ptr_bfkmer, &tmp));
              }
              if (discarded) {
                Nchar1 = string_seq(seq1, char_seq1);

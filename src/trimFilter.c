@@ -194,6 +194,7 @@ int main(int argc, char *argv[]) {
   f_good = fopen_gen(fq_good, "w");
 
   // Loop over the fastq file
+  double tmp;
   while ( (newlen = fread(buffer+offset, 1, B_LEN-offset, fq_in)) > 0 ) {
     newlen += offset;
     buffer[newlen++] =  '\0';
@@ -220,9 +221,9 @@ int main(int argc, char *argv[]) {
               }
               if (stat_TF.filters[CONT] && !discarded) {
                 if (par_TF.method == TREE) {
-                  discarded = is_read_inTree(ptr_tree, seq);
+                  discarded = is_read_inTree(ptr_tree, seq, &tmp);
                 } else if (par_TF.method == BLOOM) {
-                  discarded = is_read_inBloom(ptr_bf, seq, par_TF.ptr_bfkmer);
+                  discarded = is_read_inBloom(ptr_bf, seq, par_TF.ptr_bfkmer, &tmp);
                 } 
                 if (discarded) {
                   Nchar = string_seq(seq, char_seq);
