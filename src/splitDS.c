@@ -658,11 +658,20 @@ int main(int argc, char *argv[]) {
   fclose(multi_2);
   fprintf(stderr, "- Multimapped: %ld\n", nrmulti);
 
+  fprintf(stderr, "- Too short: %ld\n", nrdisc);
+
   if (adapter_trim) {
-    fprintf(stderr, "- Too short: %ld\n", nrdisc);
     fprintf(stderr, "- Adapter trimmed: %ld\n", nrtrim);
   }
 
+  if (min_poly_G) {
+    fprintf(stderr, "- polyG trimmed: %ld\n", nrpolyG);
+  }
+
+  if (par_TF.trimQ) {
+    fprintf(stderr, "- Q trimmed: %ld\n", nrlowQ);
+  }
+  
   for (i = 0; i < nrfilters; i++) {
     buffer_outputDS(out_1[i], NULL, 0, i*2);
     fclose(out_1[i]);
