@@ -82,7 +82,25 @@ void printHelpDialog_splitDS() {
    "               <AD2.fa>: fasta file containing adapters,\n"
    "               <mismatches>: maximum mismatch count allowed,\n"
    "               <score>: score threshold  for the aligner.\n"
-   " -g, --trimG   <min_len>: enable trimming of polyG repeats at the end of read,\n"
+   " -Q, --trimQ   NO:       does nothing to low quality reads (default),\n"
+   "               ALL:      removes all reads containing at least one low\n"
+   "                         quality nucleotide.\n"
+   "               ENDS:     trims the ends of the read if their quality is\n"
+   "                         below the threshold -q,\n"
+   "               FRAC:     discards a read if the fraction of bases with\n"
+   "                         low quality scores (below -q) is over 5 percent \n"
+   "                         or a user defined percentage (-p). \n"
+   "               ENDSFRAC: trims the ends and then discards the read if \n"
+   "                         there are more low quality nucleotides than \n"
+   "                         allowed by the option -p.\n"
+   "               GLOBAL:   removes n1 cycles on the left and n2 on the \n"
+   "                         right, specified in -g.\n"
+   "               All reads are discarded if they are shorter than MINL\n"
+   "               (specified with -m or --minL).\n "   
+   " -g, --trimG   <min_len>: enable trimming of polyG repeats with a minimum length of min_len\n"
+   "                       at the end of read,\n"
+   "               All reads are discarded if they are shorter than MINL\n"
+   "               (specified with -m or --minL).\n "   
    " -m, --minL    minimum length allowed for a read before it is discarded\n"
    "               (default 36).\n";
   fprintf(stderr, "%s", dialog);
@@ -160,6 +178,8 @@ int main(int argc, char *argv[]) {
      {"length", required_argument, 0, 'l'},
      {"minL", required_argument, 0, 'm'},
      {"trimG", required_argument, 0, 'g'},
+     {"trimQ", required_argument, 0, 'Q'},
+     {"percent", required_argument, 0, 'p'},
      {"output", required_argument, 0, 'o'}
   };
 
@@ -179,8 +199,11 @@ int main(int argc, char *argv[]) {
   par_TF.minL = 36;
   int min_poly_G = 0;
 
+  par_TF.trimQ = NO;
+  par_TF.percent  = 5;
+  int method_len = 20;
   Split index = { 0 }, in_fq = { 0 }, adapt = { 0 };
-  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:A:m:g:", long_options, 0)) != -1) {
+  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:A:m:g:p:Q:", long_options, 0)) != -1) {
     switch (option) {
       case 'h':
         printHelpDialog_splitDS();
@@ -251,6 +274,17 @@ int main(int argc, char *argv[]) {
          break;
       case 'q':
          par_TF.minQ = atoi(optarg);
+         break;
+      case 'Q':
+         par_TF.trimQ = (!strncmp(optarg, "NO", method_len)) ? NO :
+            (!strncmp(optarg, "ALL", method_len)) ? ALL :
+            (!strncmp(optarg, "FRAC", method_len)) ? FRAC :
+            (!strncmp(optarg, "ENDS", method_len)) ? ENDS :
+            (!strncmp(optarg, "ENDSFRAC", method_len)) ? ENDSFRAC :
+            (!strncmp(optarg, "GLOBAL", method_len)) ? GLOBAL : ERROR;
+         break;
+      case 'p':
+         par_TF.percent = atoi(optarg);
          break;
       case 'l':
          L = atoi(optarg);
@@ -401,6 +435,9 @@ int main(int argc, char *argv[]) {
   size_t nrmulti = 0;
   size_t nrtrim = 0;
   size_t nrdisc = 0;
+  size_t nrpolyG = 0;
+  size_t nrlowQ = 0;
+
   int newl1 = 0, newl2 = 0;
   int offset1 = 0, offset2 = 0;
   int l1_i = 0, l1_f = 0, l2_i = 0, l2_f = 0;
@@ -451,6 +488,7 @@ int main(int argc, char *argv[]) {
         } else if (stop1 && stop2) {  // Do the stuff!!
           counts++;
           int trim = 0;
+          int trim2 = 0;
           int discarded = 0;
           if (adapter_trim) {
             // omp_set_dynamic(0);     // Explicitly disable dynamic teams
@@ -475,14 +513,25 @@ int main(int argc, char *argv[]) {
               // printf("trim\n");
             }
           }
-          if (min_poly_G) {
-            trim_polyX(seq1, 'G', min_poly_G);
-            trim_polyX(seq2, 'G', min_poly_G);
+          if (min_poly_G && !discarded) {
+            if (trim_polyX(seq1, 'G', min_poly_G) || trim_polyX(seq2, 'G', min_poly_G)) {
+              nrpolyG++;
+            }
             if (seq1->L < par_TF.minL || seq2->L < par_TF.minL) {
               nrdisc++;
               discarded = 1;
             }
           }
+          if (par_TF.trimQ && !discarded) {
+             trim = trim_sequenceQ(seq1);
+             trim2 = trim_sequenceQ(seq2);
+             discarded = (!trim) || (!trim2);
+             if (discarded) {
+                nrdisc++;
+             } else if (trim == 2 || trim2 == 2) {
+                nrlowQ++;
+             }
+           }
           if (!discarded) {
             hit = 0; // have a hit
             hit_idx = -1;
