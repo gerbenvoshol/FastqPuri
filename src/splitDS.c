@@ -82,6 +82,7 @@ void printHelpDialog_splitDS() {
    "               <AD2.fa>: fasta file containing adapters,\n"
    "               <mismatches>: maximum mismatch count allowed,\n"
    "               <score>: score threshold  for the aligner.\n"
+   " -g, --trimG   <min_len>: enable trimming of polyG repeats at the end of read,\n"
    " -m, --minL    minimum length allowed for a read before it is discarded\n"
    "               (default 36).\n";
   fprintf(stderr, "%s", dialog);
@@ -97,6 +98,43 @@ int strsuff(const char *s, const char *suff) {
 
   return slen >= sufflen && !memcmp(s + slen - sufflen, suff, sufflen);
 }
+
+// Trim 3prime (tail) of sequence if it contains a poly X of min_size length (default 10)
+int trim_polyX(Fq_read *seq, const char X, const int min_size)
+{
+    const int one_mismatch_per = 8; // Allow one mismatch for each 8 base pairs
+    const int max_mismatch = 5;     // Allow maximum of 5 mismatches
+
+    int slen = seq->L - 1;
+    int mismatch = 0;
+    int i, allowed_mismatch, firstX = slen;
+    for(i = slen; i >= 0; i--) {
+        // Found another X update position
+        if(seq->line2[i] == X) {
+            firstX = i;
+        // Not an X, add mismatch and check if we continue 
+        } else {
+          mismatch++;        
+        }
+
+        allowed_mismatch = (slen - i + 1) / one_mismatch_per;
+        // NOTE: Leaving the minimum length requirement out, might lead to better quality trimming. More testing is required
+        if (mismatch > max_mismatch || (mismatch > allowed_mismatch && (slen - i + 1) >= min_size)) {
+            break;
+        }
+    }
+
+    // If the poly X tail is long enough, trim the sequence
+    if ((slen - firstX + 1) >= min_size) {
+        seq->L = firstX + 1;
+        seq->line2[firstX] = '\0';
+        seq->line4[firstX] = '\0';
+        return 1;
+    }
+
+    return 0;
+}
+
 
 /**
  * @brief contains splitDS main function. See README_splitDS.md
@@ -121,6 +159,7 @@ int main(int argc, char *argv[]) {
      {"adapter", required_argument, 0, 'A'},
      {"length", required_argument, 0, 'l'},
      {"minL", required_argument, 0, 'm'},
+     {"trimG", required_argument, 0, 'g'},
      {"output", required_argument, 0, 'o'}
   };
 
@@ -138,9 +177,10 @@ int main(int argc, char *argv[]) {
   int option;
   int i;
   par_TF.minL = 36;
+  int min_poly_G = 0;
 
   Split index = { 0 }, in_fq = { 0 }, adapt = { 0 };
-  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:a:m:", long_options, 0)) != -1) {
+  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:A:m:g:", long_options, 0)) != -1) {
     switch (option) {
       case 'h':
         printHelpDialog_splitDS();
@@ -155,6 +195,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'm':
         par_TF.minL = atoi(optarg);
+        break;
+      case 'g':
+        min_poly_G = atoi(optarg);
         break;
       case 'f':
          in_fq = strsplit(optarg, ':');
@@ -310,9 +353,15 @@ int main(int argc, char *argv[]) {
   FILE **out_1 = calloc(sizeof(FILE *), nrfilters);
   FILE **out_2 = calloc(sizeof(FILE *), nrfilters);
   for (i = 0; i < nrfilters; i++) {
-    snprintf(temp, MAX_FILENAME, "%s%s_1.fq.gz", prefix, index.s[i]);
+    char *suffix = NULL;
+    if (!(suffix = strrchr(index.s[i], '/'))) {
+      suffix = index.s[i];
+    } else {
+      suffix++;
+    }
+    snprintf(temp, MAX_FILENAME, "%s%s_1.fq.gz", prefix, suffix);
     out_1[i] = fopen_gen(temp, "w");
-    snprintf(temp, MAX_FILENAME, "%s%s_2.fq.gz", prefix, index.s[i]);
+    snprintf(temp, MAX_FILENAME, "%s%s_2.fq.gz", prefix, suffix);
     out_2[i] = fopen_gen(temp, "w");
   }
 
@@ -426,7 +475,14 @@ int main(int argc, char *argv[]) {
               // printf("trim\n");
             }
           }
-
+          if (min_poly_G) {
+            trim_polyX(seq1, 'G', min_poly_G);
+            trim_polyX(seq2, 'G', min_poly_G);
+            if (seq1->L < par_TF.minL || seq2->L < par_TF.minL) {
+              nrdisc++;
+              discarded = 1;
+            }
+          }
           if (!discarded) {
             hit = 0; // have a hit
             hit_idx = -1;
