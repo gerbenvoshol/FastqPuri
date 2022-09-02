@@ -40,8 +40,8 @@
 int trim_adapter(Fq_read *seq, Ad_seq *adap_list);
 int trim_sequenceN(Fq_read *seq);
 int trim_sequenceQ(Fq_read *seq);
-bool is_read_inTree(Tree *tree_ptr, Fq_read *seq);
-bool is_read_inBloom(Bfilter *tree_ptr, Fq_read *seq, Bfkmer *ptr_Bfkmer);
+bool is_read_inTree(Tree *tree_ptr, Fq_read *seq, double *score);
+bool is_read_inBloom(Bfilter *tree_ptr, Fq_read *seq, Bfkmer *ptr_Bfkmer, double *score);
 int Qtrim_global(Fq_read *seq, int left, int right, char type);
 
 /* static functions
