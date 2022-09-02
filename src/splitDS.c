@@ -60,7 +60,7 @@ Iparam_trimFilter par_TF;  /**< global variable: Input parameters of makeTree.*/
 void printHelpDialog_splitDS() {
   const char dialog[] =
    "Usage: splitPE --ifq <INPUT1.fq>:<INPUT2.fq>\n"
-   "                  --output [O_PREFIX] --gzip [y|n]\n"
+   "                  --output [O_PREFIX]\n"
    "                  (--idx [<INDEX_FILE(s)>:<score>:<lmer_len>] |\n"
    "Reads in paired end fq files (gz, bz2, z formats also accepted) "
    "Options:\n"
@@ -102,7 +102,9 @@ void printHelpDialog_splitDS() {
    "               All reads are discarded if they are shorter than MINL\n"
    "               (specified with -m or --minL).\n "   
    " -m, --minL    minimum length allowed for a read before it is discarded\n"
-   "               (default 36).\n";
+   "               (default 36).\n"
+   " -s, --stats   only report stats (no fastq output)\n";
+   " -r, --reads   only test x reads (default ALL)\n";
   fprintf(stderr, "%s", dialog);
 }
 
@@ -180,7 +182,9 @@ int main(int argc, char *argv[]) {
      {"trimG", required_argument, 0, 'g'},
      {"trimQ", required_argument, 0, 'Q'},
      {"percent", required_argument, 0, 'p'},
-     {"output", required_argument, 0, 'o'}
+     {"output", required_argument, 0, 'o'},
+     {"stats", no_argument, 0, 's'},
+     {"reads", required_argument, 0, 'r'}
   };
 
   char *Ifq = NULL, *Ifq2 = NULL;
@@ -198,12 +202,14 @@ int main(int argc, char *argv[]) {
   int i;
   par_TF.minL = 36;
   int min_poly_G = 0;
+  int stats_only = 0;
+  int reads = -1; // All reads
 
   par_TF.trimQ = NO;
   par_TF.percent  = 5;
   int method_len = 20;
   Split index = { 0 }, in_fq = { 0 }, adapt = { 0 };
-  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:A:m:g:p:Q:", long_options, 0)) != -1) {
+  while ((option = getopt_long(argc, argv, "hvbf:x:o:l:A:m:g:p:Q:r:s", long_options, 0)) != -1) {
     switch (option) {
       case 'h':
         printHelpDialog_splitDS();
@@ -215,6 +221,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'b':
         use_best = 1;
+        break;
+      case 's':
+        stats_only = 1;
         break;
       case 'm':
         par_TF.minL = atoi(optarg);
@@ -274,6 +283,9 @@ int main(int argc, char *argv[]) {
          break;
       case 'q':
          par_TF.minQ = atoi(optarg);
+         break;
+      case 'r':
+         reads = atoi(optarg);
          break;
       case 'Q':
          par_TF.trimQ = (!strncmp(optarg, "NO", method_len)) ? NO :
@@ -384,31 +396,38 @@ int main(int argc, char *argv[]) {
    * Output files (=filters+multi+undet)
    * 
    * */
-  FILE **out_1 = calloc(sizeof(FILE *), nrfilters);
-  FILE **out_2 = calloc(sizeof(FILE *), nrfilters);
-  for (i = 0; i < nrfilters; i++) {
-    char *suffix = NULL;
-    if (!(suffix = strrchr(index.s[i], '/'))) {
-      suffix = index.s[i];
-    } else {
-      suffix++;
+  FILE **out_1 = NULL;
+  FILE **out_2 = NULL;
+  FILE *undet_1 = NULL;
+  FILE *undet_2 = NULL;
+  FILE *multi_1 = NULL;
+  FILE *multi_2= NULL;
+  if (!stats_only) {
+    out_1 = calloc(sizeof(FILE *), nrfilters);
+    out_2 = calloc(sizeof(FILE *), nrfilters);
+    for (i = 0; i < nrfilters; i++) {
+      char *suffix = NULL;
+      if (!(suffix = strrchr(index.s[i], '/'))) {
+        suffix = index.s[i];
+      } else {
+        suffix++;
+      }
+      snprintf(temp, MAX_FILENAME, "%s%s_1.fq.gz", prefix, suffix);
+      out_1[i] = fopen_gen(temp, "w");
+      snprintf(temp, MAX_FILENAME, "%s%s_2.fq.gz", prefix, suffix);
+      out_2[i] = fopen_gen(temp, "w");
     }
-    snprintf(temp, MAX_FILENAME, "%s%s_1.fq.gz", prefix, suffix);
-    out_1[i] = fopen_gen(temp, "w");
-    snprintf(temp, MAX_FILENAME, "%s%s_2.fq.gz", prefix, suffix);
-    out_2[i] = fopen_gen(temp, "w");
+
+    snprintf(temp, MAX_FILENAME, "%sundet_1.fq.gz", prefix);
+    undet_1 = fopen_gen(temp, "w");
+    snprintf(temp, MAX_FILENAME, "%sundet_2.fq.gz", prefix);
+    undet_2 = fopen_gen(temp, "w");  
+
+    snprintf(temp, MAX_FILENAME, "%smulti_1.fq.gz", prefix);
+    multi_1 = fopen_gen(temp, "w");
+    snprintf(temp, MAX_FILENAME, "%smulti_2.fq.gz", prefix);
+    multi_2 = fopen_gen(temp, "w");  
   }
-
-  snprintf(temp, MAX_FILENAME, "%sundet_1.fq.gz", prefix);
-  FILE *undet_1 = fopen_gen(temp, "w");
-  snprintf(temp, MAX_FILENAME, "%sundet_2.fq.gz", prefix);
-  FILE *undet_2 = fopen_gen(temp, "w");  
-
-  snprintf(temp, MAX_FILENAME, "%smulti_1.fq.gz", prefix);
-  FILE *multi_1 = fopen_gen(temp, "w");
-  snprintf(temp, MAX_FILENAME, "%smulti_2.fq.gz", prefix);
-  FILE *multi_2 = fopen_gen(temp, "w");  
-
   /**
    *  Opening fq file for reading
    * 
@@ -451,6 +470,7 @@ int main(int argc, char *argv[]) {
   double score2;
   double curr_score;
   double best_score;
+
   do {
      newl1 = fread(buffer1+offset1, 1, B_LEN-offset1, fq_in1);
      newl2 = fread(buffer2+offset2, 1, B_LEN-offset2, fq_in2);
@@ -487,6 +507,9 @@ int main(int argc, char *argv[]) {
            j2++;
         } else if (stop1 && stop2) {  // Do the stuff!!
           counts++;
+          if (reads > 0 && counts > reads) {
+            break;
+          }
           int trim = 0;
           int trim2 = 0;
           int discarded = 0;
@@ -588,20 +611,26 @@ int main(int argc, char *argv[]) {
               nrundet++;
               Nchar1 = string_seq(seq1, char_seq1);
               Nchar2 = string_seq(seq2, char_seq2);
-              buffer_outputDS(undet_1, char_seq1, Nchar1, nrfilters*2);
-              buffer_outputDS(undet_2, char_seq2, Nchar2, nrfilters*2+1);           
+              if (!stats_only) {
+                buffer_outputDS(undet_1, char_seq1, Nchar1, nrfilters*2);
+                buffer_outputDS(undet_2, char_seq2, Nchar2, nrfilters*2+1);
+              }           
             } else if (multi) {
               nrmulti++;
               Nchar1 = string_seq(seq1, char_seq1);
               Nchar2 = string_seq(seq2, char_seq2);
-              buffer_outputDS(multi_1, char_seq1, Nchar1, nrfilters*2+2);
-              buffer_outputDS(multi_2, char_seq2, Nchar2, nrfilters*2+3);               
+              if (!stats_only) {
+                buffer_outputDS(multi_1, char_seq1, Nchar1, nrfilters*2+2);
+                buffer_outputDS(multi_2, char_seq2, Nchar2, nrfilters*2+3);
+              }
             } else if (hit) {
               nrreads[hit_idx]++;
               Nchar1 = string_seq(seq1, char_seq1);
               Nchar2 = string_seq(seq2, char_seq2);
-              buffer_outputDS(out_1[hit_idx], char_seq1, Nchar1, hit_idx*2);
-              buffer_outputDS(out_2[hit_idx], char_seq2, Nchar2, hit_idx*2+1);                
+              if (!stats_only) {
+                buffer_outputDS(out_1[hit_idx], char_seq1, Nchar1, hit_idx*2);
+                buffer_outputDS(out_2[hit_idx], char_seq2, Nchar2, hit_idx*2+1);                
+              }
             }
           }
           if (counts % 1000000 == 0) {
@@ -646,46 +675,51 @@ int main(int argc, char *argv[]) {
    * Finish file output
    * 
    * */
-  buffer_outputDS(undet_1, NULL, 0, nrfilters*2);
-  fclose(undet_1);
-  buffer_outputDS(undet_2, NULL, 0, nrfilters*2+1);
-  fclose(undet_2);
-  fprintf(stderr, "- Undetermined: %ld\n", nrundet);
+  if (!stats_only) {
+    buffer_outputDS(undet_1, NULL, 0, nrfilters*2);
+    fclose(undet_1);
+    buffer_outputDS(undet_2, NULL, 0, nrfilters*2+1);
+    fclose(undet_2);
+  }
+  fprintf(stderr, "- Undetermined: %lf\n", nrundet/(double)counts);
 
-  buffer_outputDS(multi_1, NULL, 0, nrfilters*2+2);
-  fclose(multi_1);
-  buffer_outputDS(multi_2, NULL, 0, nrfilters*2+3);
-  fclose(multi_2);
-  fprintf(stderr, "- Multimapped: %ld\n", nrmulti);
+  if (!stats_only) {
+    buffer_outputDS(multi_1, NULL, 0, nrfilters*2+2);
+    fclose(multi_1);
+    buffer_outputDS(multi_2, NULL, 0, nrfilters*2+3);
+    fclose(multi_2);
+  }
+  fprintf(stderr, "- Multimapped: %lf\n", nrmulti/(double)counts);
 
-  fprintf(stderr, "- Too short: %ld\n", nrdisc);
+  fprintf(stderr, "- Too short: %lf\n", nrdisc/(double)counts);
 
   if (adapter_trim) {
-    fprintf(stderr, "- Adapter trimmed: %ld\n", nrtrim);
+    fprintf(stderr, "- Adapter trimmed: %lf\n", nrtrim/(double)counts);
   }
 
   if (min_poly_G) {
-    fprintf(stderr, "- polyG trimmed: %ld\n", nrpolyG);
+    fprintf(stderr, "- polyG trimmed: %lf\n", nrpolyG/(double)counts);
   }
 
   if (par_TF.trimQ) {
-    fprintf(stderr, "- Q trimmed: %ld\n", nrlowQ);
+    fprintf(stderr, "- Q trimmed: %lf\n", nrlowQ/(double)counts);
   }
   
   for (i = 0; i < nrfilters; i++) {
-    buffer_outputDS(out_1[i], NULL, 0, i*2);
-    fclose(out_1[i]);
-    buffer_outputDS(out_2[i], NULL, 0, i*2+1);
-    fclose(out_2[i]);
-    fprintf(stderr, "- %s: %ld\n", index.s[i], nrreads[i]);    
+    if (!stats_only) {
+      buffer_outputDS(out_1[i], NULL, 0, i*2);
+      fclose(out_1[i]);
+      buffer_outputDS(out_2[i], NULL, 0, i*2+1);
+      fclose(out_2[i]);
+      /**
+       * Free file pointers
+       * 
+       * */
+      free(out_1);
+      free(out_2);
+    }
+    fprintf(stderr, "- %s: %lf\n", index.s[i], nrreads[i]/(double)counts);    
   }
-
-  /**
-   * Free file pointers
-   * 
-   * */
-  free(out_1);
-  free(out_2);
 
   /**
    * Free filters
