@@ -87,7 +87,7 @@ char *command_Qreport(char ** new_dir_ptr) {
 //  fprintf(stderr, ">>>template: %s\n", template);
   char *new_dir = mkdtemp(template);
 
-  if (*new_dir == NULL)
+  if (new_dir == NULL)
   {
     fprintf(stderr, "Unexpected error when trying to create the temporary dir %s, errno: %s\n", 
             template, strerror(errno));
