@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <libgen.h>
 #include <unistd.h>
 #include <string.h>
@@ -85,6 +86,13 @@ char *command_Qreport(char ** new_dir_ptr) {
   char template[] = "/tmp/FastqPuri_XXXXXX";
 //  fprintf(stderr, ">>>template: %s\n", template);
   char *new_dir = mkdtemp(template);
+
+  if (*new_dir == NULL)
+  {
+    fprintf(stderr, "Unexpected error when trying to create the temporary dir %s, errno: %s\n", 
+            template, strerror(errno));
+    exit(1);
+  }
 //  fprintf(stderr, ">>>template after mkdtemp: %s\n", template);
   *new_dir_ptr = new_dir;
 //  fprintf(stderr, ">>>new_dir: %s\n", new_dir);
