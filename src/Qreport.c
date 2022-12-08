@@ -140,8 +140,8 @@ int main(int argc, char *argv[]) {
 
 #ifdef HAVE_RPKG
   fprintf(stderr, "- Creating html output in file: %s\n", par_QR.outputfilehtml);
-  char *new_dir;
-  char *command = command_Qreport(&new_dir);
+  char new_dir[] = "/tmp/FastqPuri_XXXXXX";
+  char *command = command_Qreport(new_dir);
   fprintf(stderr, "- Running command: %s \n", command);
   int status;
   if ((status = system(command)) != 0) {
