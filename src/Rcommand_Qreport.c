@@ -76,7 +76,7 @@ char *command_Qreport(char * template) {
   char *old_dir = dirname(pBuf);
   if (strcmp(old_dir, INSTALL_DIR) != 0) {
     old_dir = dirname(old_dir);
-    strcat(old_dir, "/R");
+    strcat(old_dir, "/share/FastqPuri/R");
   } else {
     strcpy(pBuf, RMD_QUALITY_REPORT);
     old_dir = dirname(pBuf);
