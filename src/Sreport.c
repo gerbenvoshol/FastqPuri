@@ -60,8 +60,8 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "- Output file: %s\n", par_SR.outputfile);
   fprintf(stderr, "Starting Sreport at: %s", asctime(timeinfo));
 #ifdef HAVE_RPKG
-  char *new_dir;
-  char * command = command_Sreport(&new_dir);
+  char new_dir[] = "/tmp/FastqPuri_XXXXXX";;
+  char * command = command_Sreport(new_dir);
   int status;
   if (command[0] != '\0') {
     fprintf(stderr, "- Running command: %s \n", command);

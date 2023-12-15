@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <libgen.h>
 #include <unistd.h>
 #include <string.h>
@@ -48,7 +49,7 @@ extern Iparam_Qreport par_QR; /**< input parameters Qreport*/
 /**
  * @brief returns Rscript command that generates the quality report in html
  * */
-char *command_Qreport(char ** new_dir_ptr) {
+char *command_Qreport(char * template) {
   char *command = calloc(MAX_RCOMMAND,sizeof(char));
   char cwd[1024];
   if (getcwd(cwd, sizeof(cwd)) != NULL)
@@ -75,19 +76,26 @@ char *command_Qreport(char ** new_dir_ptr) {
   char *old_dir = dirname(pBuf);
   if (strcmp(old_dir, INSTALL_DIR) != 0) {
     old_dir = dirname(old_dir);
-    strcat(old_dir, "/R");
+    strcat(old_dir, "/share/FastqPuri/R");
   } else {
     strcpy(pBuf, RMD_QUALITY_REPORT);
     old_dir = dirname(pBuf);
   }
 //  fprintf(stderr, ">>>old_dir: %s, INSTALL_DIR: %s,\n   RSCRIPT_EXEC: %s, CMAKE_INSTALL_PREFIX: %s\n", old_dir, INSTALL_DIR, RSCRIPT_EXEC, CMAKE_INSTALL_PREFIX);
   
-  char template[] = "/tmp/FastqPuri_XXXXXX";
-//  fprintf(stderr, ">>>template: %s\n", template);
+// fprintf(stderr, ">>>template: %s\n", template);
   char *new_dir = mkdtemp(template);
-//  fprintf(stderr, ">>>template after mkdtemp: %s\n", template);
-  *new_dir_ptr = new_dir;
-//  fprintf(stderr, ">>>new_dir: %s\n", new_dir);
+
+  if (new_dir == NULL) {
+    fprintf(stderr, "Unexpected error when trying to create the temporary dir %s, errno: %s\n", 
+            template, strerror(errno));
+    exit(1);
+  } else if (new_dir != template) {
+     fprintf(stderr, "WARNING: mkdtemp is returning a memory address that is different from the input");
+     fprintf(stderr, "         Input memory address: %p, return value: %p \n", template, new_dir);
+     new_dir = template;    
+  }
+
     
   char rmd_quality_report_name_tmp[] = RMD_QUALITY_REPORT;
   char *rmd_quality_report_name = basename(rmd_quality_report_name_tmp);

@@ -29,7 +29,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <libgen.h>
-#include <strings.h>
+#include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include "tinydir.h"
 #include "Rcommand_Sreport.h"
@@ -58,7 +59,7 @@ extern Iparam_Sreport par_SR; /**< input parameters Sreport*/
  *                   output_file = output_file)
  * @endcode
  * */
-char *command_Sreport(char **new_dir_ptr){
+char *command_Sreport(char *template){
   char *command = calloc(MAX_RCOMMAND, sizeof(char));
   command[0] = '\0';
   char cwd[1024];
@@ -84,9 +85,18 @@ char *command_Sreport(char **new_dir_ptr){
     fprintf(stderr, "Maybe something went wrong with Qreport trying to generate such files.\n");
   } else {
 #ifdef HAVE_RPKG
-  char template[] = "/tmp/FastqPuri_XXXXXX";
+  
   char *new_dir = mkdtemp(template);
-  *new_dir_ptr = new_dir;
+   if (new_dir == NULL) {
+    fprintf(stderr, "Unexpected error when trying to create the temporary dir %s, errno: %s\n", 
+            template, strerror(errno));
+    exit(1);
+  } else if (new_dir != template) {
+     fprintf(stderr, "WARNING: mkdtemp is returning a memory address that is different from the input");
+     fprintf(stderr, "         Input memory address: %p, return value: %p \n", template, new_dir);
+     new_dir = template;    
+  }
+  
   char old_dir_tmp[MAX_FILENAME];
   strncpy(old_dir_tmp, par_SR.Rmd_file, MAX_FILENAME-1);
   char *old_dir = dirname(old_dir_tmp);
