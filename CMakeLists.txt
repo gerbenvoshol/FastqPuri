@@ -99,8 +99,11 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/config.h.in ${CMAKE_SOURCE_DIR}/config.h)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 
-# Set compiler flags
-set(CMAKE_C_FLAGS  "-Wall -Wextra -O3 -march=native -std=c11 -fopenmp -D_DEFAULT_SOURCE") 
+# Set compiler flags if not given in the commandline
+if (NOT CMAKE_C_FLAGS)
+   set(CMAKE_C_FLAGS  "-Wall -Wextra -O3 -march=native -std=c11 -fopenmp -D_DEFAULT_SOURCE") 
+endif()
+
 message("-- Setting compiler flags: ${CMAKE_C_FLAGS}")
 
 # Set linker flags
