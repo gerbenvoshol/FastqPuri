@@ -663,6 +663,12 @@ int main(int argc, char *argv[]) {
     printf("stop1 %d, stop2 %d \n", stop1, stop2);
     exit(EXIT_FAILURE);
   }
+
+  if (!counts) {
+    fprintf(stderr, "ERROR: Empty files\n");
+    exit(EXIT_FAILURE);
+  }
+
   fprintf(stderr, "- Number of lines in fq_files %d\n", nl1);
   // Printing the rest of the buffer outputs and closing file
   fprintf(stderr, "- Finished reading fq file.\n");
