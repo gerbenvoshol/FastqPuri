@@ -15,7 +15,7 @@ it goes into an "undetermined" file.
 Usage `C` executable (in folder `bin`):
 
 ```
-Usage: splitPE --ifq <INPUT1.fq>:<INPUT2.fq> --idx <INDEX_FILE(s)>:<score>:<lmer_len>
+Usage: splitPE --ifq <INPUT1.fq>:<INPUT2.fq> --idx <INDEX_FILE>:[<INDEX_FILE2>:...]:<score>:<lmer_len>
                   --length <READ_LENGTH> --output [O_PREFIX] [options]
 
 Reads in paired end fq files (gz, bz2, z formats also accepted) and splits them
@@ -29,12 +29,14 @@ Options:
  -l, --length  read length: length of the reads, mandatory option.
  -o, --output  output prefix (with path), optional (default ./out).
  -b, --best    output to filter with the best score
- -x, --idx     index input file. To be included with any methods to remove.
-               contaminations (TREE, BLOOM). Minimum 3 fields separated by colons: 
-               <INDEX_FILE(s)>: output of makeTree, makeBloom,
+ -x, --idx     index input file(s). One or more index files created by makeTree or
+               makeBloom, followed by score and kmer length, all separated by colons.
+               Format: <INDEX_FILE1>[:<INDEX_FILE2>:...]:<score>:<lmer_len>
+               <INDEX_FILE>: output of makeTree or makeBloom (one or more files),
                <score>: score threshold to accept a match [0,1],
-               [lmer_len]: the length of the lmers to be 
+               <lmer_len>: the length of the lmers to be 
                         looked for in the reads [1,READ_LENGTH].
+               Multiple index files allow splitting reads into different categories.
  -A, --adapter adapter input. Four fields separated by colons:
                <AD1.fa>: fasta file containing adapters,
                <AD2.fa>: fasta file containing adapters,
