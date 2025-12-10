@@ -15,10 +15,13 @@ it goes into an "undetermined" file.
 Usage `C` executable (in folder `bin`):
 
 ```
-Usage: splitPE --ifq <INPUT1.fq>:<INPUT2.fq>
-                  --output [O_PREFIX]
-                  (--idx [<INDEX_FILE(s)>:<score>:<lmer_len>] |
-Reads in paired end fq files (gz, bz2, z formats also accepted) Options:
+Usage: splitPE --ifq <INPUT1.fq>:<INPUT2.fq> --idx <INDEX_FILE(s)>:<score>:<lmer_len>
+                  --length <READ_LENGTH> --output [O_PREFIX] [options]
+
+Reads in paired end fq files (gz, bz2, z formats also accepted) and splits them
+based on contamination filters.
+
+Options:
  -v, --version prints package version.
  -h, --help    prints help dialog.
  -f, --ifq     2 fastq input files [*fq|*fq.gz|*fq.bz2] separated by
